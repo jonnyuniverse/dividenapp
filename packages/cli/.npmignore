@@ -1,0 +1,12 @@
+# Source files (only dist/ is needed)
+src/
+tsconfig.json
+
+# Dev files
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Turbo
+.turbo/

@@ -26,7 +26,14 @@ Thumbs.db
 
 # Prisma
 packages/core/prisma/*.db
+prisma/dev.db
 
 # Logs
 *.log
 npm-debug.log*
+
+# Package tarballs
+*.tgz
+
+# Coverage
+coverage/

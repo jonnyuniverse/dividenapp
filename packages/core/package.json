@@ -1,8 +1,14 @@
 {
   "name": "@dividen/core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "DiviDen Command Center - Core Next.js Application",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonnyuniverse/dividen.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://dividen.ai",
   "scripts": {
     "dev": "next dev",
     "build": "npx prisma generate && next build",

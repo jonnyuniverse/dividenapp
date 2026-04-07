@@ -1,7 +1,7 @@
 {
-  "name": "@dividen/cli",
-  "version": "0.1.0",
-  "description": "DiviDen Command Center CLI",
+  "name": "dividen",
+  "version": "1.0.0",
+  "description": "DiviDen Command Center CLI — scaffold and manage AI-human coordination projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -12,6 +12,35 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "cli",
+    "command-center",
+    "agent",
+    "kanban",
+    "crm",
+    "queue",
+    "nextjs",
+    "typescript",
+    "dividen",
+    "ai-agent",
+    "coordination",
+    "scaffold"
+  ],
+  "author": "DiviDen Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonnyuniverse/dividen.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://dividen.ai",
+  "bugs": {
+    "url": "https://github.com/jonnyuniverse/dividen/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "commander": "^12.0.0",
@@ -26,7 +55,8 @@
     "typescript": "^5.4.0"
   },
   "files": [
-    "dist"
-  ],
-  "license": "MIT"
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
 }
