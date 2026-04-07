@@ -37,8 +37,9 @@ model KanbanCard {
   id          String          @id @default(cuid())
   title       String
   description String?
-  status      String          @default("backlog") // "backlog" | "in_progress" | "review" | "done"
+  status      String          @default("leads") // pipeline stage
   priority    String          @default("medium")   // "low" | "medium" | "high" | "urgent"
+  assignee    String          @default("human") // "human" | "agent"
   dueDate     DateTime?
   order       Int             @default(0)
   userId      String
@@ -73,9 +74,10 @@ model QueueItem {
   type        String   // "task" | "notification" | "reminder" | "agent_suggestion"
   title       String
   description String?
-  priority    String   @default("medium")
-  status      String   @default("pending") // "pending" | "accepted" | "dismissed"
+  priority    String   @default("medium")  // "low" | "medium" | "high" | "urgent"
+  status      String   @default("ready")   // "ready" | "in_progress" | "done_today" | "blocked"
   source      String?  // "user" | "agent" | "system"
+  userId      String?
   metadata    String?  // JSON string for flexible data
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

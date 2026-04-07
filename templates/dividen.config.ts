@@ -25,6 +25,11 @@ export interface DividenConfig {
     /** Temperature for AI responses (0-1) */
     temperature: number;
   };
+  /** Kanban board configuration */
+  kanban: {
+    /** Pipeline stages (columns) */
+    stages: { id: string; label: string; color: string }[];
+  };
   /** Dashboard configuration */
   dashboard: {
     /** Default center panel tab */
@@ -46,6 +51,16 @@ const config: DividenConfig = {
     anthropicModel: 'claude-sonnet-4-20250514',
     maxTokens: 4096,
     temperature: 0.7,
+  },
+  kanban: {
+    stages: [
+      { id: 'leads', label: 'Leads', color: '#94a3b8' },
+      { id: 'qualifying', label: 'Qualifying', color: '#60a5fa' },
+      { id: 'proposal', label: 'Proposal', color: '#a78bfa' },
+      { id: 'negotiation', label: 'Negotiation', color: '#fbbf24' },
+      { id: 'won', label: 'Won', color: '#34d399' },
+      { id: 'lost', label: 'Lost', color: '#f87171' },
+    ],
   },
   dashboard: {
     defaultTab: 'chat',
