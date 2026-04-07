@@ -32,12 +32,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jonnyuniverse/dividen.git",
+    "url": "git+https://github.com/jonnyuniverse/dividenapp.git",
     "directory": "packages/cli"
   },
   "homepage": "https://dividen.ai",
   "bugs": {
-    "url": "https://github.com/jonnyuniverse/dividen/issues"
+    "url": "https://github.com/jonnyuniverse/dividenapp/issues"
   },
   "engines": {
     "node": ">=18.0.0"

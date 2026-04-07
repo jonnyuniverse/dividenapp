@@ -97,7 +97,7 @@ ANTHROPIC_API_KEY="sk-ant-..."
 
 ## 📚 Full Documentation
 
-Visit the [DiviDen GitHub repository](https://github.com/jonnyuniverse/dividen) for:
+Visit the [DiviDen GitHub repository](https://github.com/jonnyuniverse/dividenapp) for:
 - Architecture overview
 - Integration guides
 - Contributing guidelines
@@ -105,7 +105,7 @@ Visit the [DiviDen GitHub repository](https://github.com/jonnyuniverse/dividen) 
 
 ## 📄 License
 
-MIT © [DiviDen Contributors](https://github.com/jonnyuniverse/dividen)
+MIT © [DiviDen Contributors](https://github.com/jonnyuniverse/dividenapp)
 
 ---
 

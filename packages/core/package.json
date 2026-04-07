@@ -5,7 +5,7 @@
   "description": "DiviDen Command Center - Core Next.js Application",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jonnyuniverse/dividen.git",
+    "url": "git+https://github.com/jonnyuniverse/dividenapp.git",
     "directory": "packages/core"
   },
   "homepage": "https://dividen.ai",

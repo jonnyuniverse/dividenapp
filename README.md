@@ -83,7 +83,7 @@ dividen init my-project
 ### From Source
 
 ```bash
-git clone https://github.com/jonnyuniverse/dividen.git
+git clone https://github.com/jonnyuniverse/dividenapp.git
 cd dividen
 npm install
 npm run build
@@ -136,7 +136,7 @@ npm run typecheck
 
 ## 📄 License
 
-MIT © [DiviDen Contributors](https://github.com/jonnyuniverse/dividen)
+MIT © [DiviDen Contributors](https://github.com/jonnyuniverse/dividenapp)
 
 ---
 
