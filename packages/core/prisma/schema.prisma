@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -116,20 +116,22 @@ model AgentMessage {
 // ─── CRM / Contacts ───────────────────────────────────────────────────────────
 
 model Contact {
-  id        String        @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  company   String?
-  role      String?
-  notes     String?
-  tags      String?       // Comma-separated tags
-  userId    String
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  role         String?
+  notes        String?
+  tags         String?       // Comma-separated tags
+  source       String?       // "manual" | "chat" | "enriched"
+  enrichedData String?       // JSON string for enrichment data
+  userId       String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards     CardContact[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards        CardContact[]
 
   @@map("contacts")
 }
@@ -151,16 +153,22 @@ model CardContact {
 // ─── AI Memory & Learning ──────────────────────────────────────────────────────
 
 model MemoryItem {
-  id        String   @id @default(cuid())
-  category  String   // "preference" | "context" | "fact" | "instruction"
-  key       String
-  value     String
-  source    String?  // "user" | "agent" | "system"
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  tier       Int      @default(1) // 1=Explicit Facts, 2=Behavioral Rules, 3=Learned Patterns
+  category   String   // Tier1: "general"|"project"|"contact" | Tier2: "communication"|"workflow"|"preferences" | Tier3: "style"|"preference"|"workflow"|"communication"
+  key        String
+  value      String
+  scope      String?  // Tier1: scope context (e.g., project name, contact name)
+  pinned     Boolean  @default(false) // Tier1: pin for high priority
+  priority   String?  // Tier2: "critical"|"high"|"medium"|"low"
+  confidence Float?   // Tier3: confidence score 0.0-1.0
+  approved   Boolean? // Tier3: user approval status (null=pending, true=approved, false=rejected)
+  source     String?  // "user" | "agent" | "system"
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, key])
   @@map("memory_items")

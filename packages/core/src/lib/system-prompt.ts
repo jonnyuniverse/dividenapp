@@ -130,31 +130,9 @@ async function layer6_crmSummary(userId: string): Promise<string> {
 }
 
 async function layer7_memory(userId: string): Promise<string> {
-  const items = await prisma.memoryItem.findMany({
-    where: { userId },
-    orderBy: { updatedAt: 'desc' },
-    take: 50,
-  });
-
-  if (items.length === 0) {
-    return `## Layer 7: Memory\nNo memory items stored yet.`;
-  }
-
-  const byCategory: Record<string, typeof items> = {};
-  for (const item of items) {
-    if (!byCategory[item.category]) byCategory[item.category] = [];
-    byCategory[item.category].push(item);
-  }
-
-  let text = `## Layer 7: Memory (${items.length} items)\n`;
-  for (const [cat, entries] of Object.entries(byCategory)) {
-    text += `\n### ${cat.toUpperCase()}\n`;
-    for (const e of entries) {
-      text += `- **${e.key}**: ${e.value}\n`;
-    }
-  }
-
-  return text;
+  // Use the 3-tier memory system
+  const { buildMemoryContext } = await import('./memory');
+  return buildMemoryContext(userId);
 }
 
 async function layer8_recentMessages(userId: string): Promise<string> {
@@ -247,8 +225,9 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[complete_checklist:{"id":"checklist_item_id","completed":true}]]
 
 ### Contacts (CRM)
-- [[create_contact:{"name":"...","email":"...","phone":"...","company":"...","role":"...","notes":"...","tags":"tag1,tag2"}]]
+- [[create_contact:{"name":"...","email":"...","phone":"...","company":"...","role":"...","notes":"...","tags":"tag1,tag2","cardId":"optional_card_to_link"}]]
 - [[link_contact:{"cardId":"card_id","contactId":"contact_id","role":"..."}]]
+- [[link_contact:{"cardId":"card_id","contactName":"Name","role":"..."}]] — Will find or create contact by name
 
 ### Queue
 - [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","description":"...","priority":"low|medium|high|urgent"}]]
@@ -260,9 +239,11 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 ### Communication
 - [[send_email:{"to":"...","subject":"...","body":"..."}]]
 
-### Memory & Learning
-- [[update_memory:{"category":"preference|context|fact|instruction","key":"...","value":"..."}]]
-- [[save_learning:{"category":"style|preference|workflow|communication","observation":"...","confidence":0.0-1.0}]]
+### Memory & Learning (3-Tier System)
+- [[update_memory:{"tier":1,"category":"general|project|contact","key":"...","value":"...","scope":"optional scope","pinned":false}]] — Explicit fact
+- [[update_memory:{"tier":2,"category":"communication|workflow|preferences","key":"...","value":"...","priority":"critical|high|medium|low"}]] — Behavioral rule
+- [[update_memory:{"tier":3,"category":"style|preference|workflow|communication","key":"...","value":"...","confidence":0.0-1.0}]] — Learned pattern
+- [[save_learning:{"category":"style|preference|workflow|communication","observation":"...","confidence":0.0-1.0}]] — Shorthand for Tier 3 pattern
 
 IMPORTANT:
 - Always include ALL required fields in each tag.

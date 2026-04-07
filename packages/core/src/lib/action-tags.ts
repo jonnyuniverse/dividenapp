@@ -182,24 +182,69 @@ async function executeTag(
             role: params.role || null,
             notes: params.notes || null,
             tags: params.tags || null,
+            source: 'chat', // Auto-created from conversation
             userId,
           },
         });
+
+        // If a cardId is provided, automatically link the contact to the card
+        if (params.cardId) {
+          try {
+            await prisma.cardContact.create({
+              data: {
+                cardId: params.cardId,
+                contactId: contact.id,
+                role: params.linkRole || null,
+              },
+            });
+          } catch {
+            // Ignore if link already exists
+          }
+        }
+
         return { tag: name, success: true, data: { id: contact.id, name: contact.name } };
       }
 
       case 'link_contact': {
         if (!params.cardId || !params.contactId) {
-          return { tag: name, success: false, error: 'Missing cardId or contactId' };
+          // If contactId not provided but contactName is, look up or create
+          if (params.cardId && params.contactName) {
+            let contact = await prisma.contact.findFirst({
+              where: { userId, name: { contains: params.contactName } },
+            });
+            if (!contact) {
+              contact = await prisma.contact.create({
+                data: {
+                  name: params.contactName,
+                  email: params.email || null,
+                  source: 'chat',
+                  userId,
+                },
+              });
+            }
+            const link = await prisma.cardContact.create({
+              data: {
+                cardId: params.cardId,
+                contactId: contact.id,
+                role: params.role || null,
+              },
+            });
+            return { tag: name, success: true, data: { id: link.id, contactId: contact.id } };
+          }
+          return { tag: name, success: false, error: 'Missing cardId or contactId/contactName' };
         }
-        const link = await prisma.cardContact.create({
-          data: {
-            cardId: params.cardId,
-            contactId: params.contactId,
-            role: params.role || null,
-          },
-        });
-        return { tag: name, success: true, data: { id: link.id } };
+        try {
+          const link = await prisma.cardContact.create({
+            data: {
+              cardId: params.cardId,
+              contactId: params.contactId,
+              role: params.role || null,
+            },
+          });
+          return { tag: name, success: true, data: { id: link.id } };
+        } catch {
+          return { tag: name, success: false, error: 'Link already exists or invalid IDs' };
+        }
       }
 
       // ── Queue ────────────────────────────────────────────────────────
@@ -261,40 +306,66 @@ async function executeTag(
         return { tag: name, success: true, data: { id: item.id, note: 'Saved as draft in queue' } };
       }
 
-      // ── Memory ───────────────────────────────────────────────────────
+      // ── Memory (3-Tier System) ────────────────────────────────────────
       case 'update_memory': {
         if (!params.key || !params.value) {
           return { tag: name, success: false, error: 'Missing key or value' };
         }
+        const tier = params.tier || 1;
         const memory = await prisma.memoryItem.upsert({
           where: {
             userId_key: { userId, key: params.key },
           },
           create: {
-            category: params.category || 'context',
+            tier,
+            category: params.category || (tier === 1 ? 'general' : tier === 2 ? 'workflow' : 'preference'),
             key: params.key,
             value: params.value,
+            scope: params.scope || null,
+            pinned: params.pinned || false,
+            priority: params.priority || null,
+            confidence: tier === 3 ? (params.confidence ?? 0.5) : null,
+            approved: tier === 3 ? null : undefined,
             source: 'agent',
             userId,
           },
           update: {
             value: params.value,
             category: params.category || undefined,
+            scope: params.scope !== undefined ? params.scope : undefined,
+            pinned: params.pinned !== undefined ? params.pinned : undefined,
+            priority: params.priority !== undefined ? params.priority : undefined,
+            confidence: params.confidence !== undefined ? params.confidence : undefined,
           },
         });
-        return { tag: name, success: true, data: { id: memory.id, key: memory.key } };
+        return { tag: name, success: true, data: { id: memory.id, key: memory.key, tier } };
       }
 
-      // ── Learning ─────────────────────────────────────────────────────
+      // ── Learning (saved as Tier 3 pattern) ────────────────────────────
       case 'save_learning': {
         if (!params.observation) {
           return { tag: name, success: false, error: 'Missing observation' };
         }
+        // Save as both UserLearning (legacy) and Tier 3 memory
         const learning = await prisma.userLearning.create({
           data: {
             category: params.category || 'preference',
             observation: params.observation,
             confidence: typeof params.confidence === 'number' ? params.confidence : 0.5,
+            userId,
+          },
+        });
+        // Also create a Tier 3 memory item
+        const patternKey = `learning_${Date.now()}`;
+        await prisma.memoryItem.create({
+          data: {
+            tier: 3,
+            category: params.category || 'preference',
+            key: patternKey,
+            value: params.observation,
+            confidence: typeof params.confidence === 'number' ? params.confidence : 0.5,
+            approved: null,
+            source: 'agent',
             userId,
           },
         });
