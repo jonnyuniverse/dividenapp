@@ -1,12 +1,11 @@
 /**
  * DiviDen LLM Provider Integration
- * 
- * Supports OpenAI (GPT-4) and Anthropic (Claude Sonnet) with streaming.
- * Includes fallback logic if one provider fails.
+ *
+ * Uses the user's OWN API keys (stored in DB via Settings)
+ * for OpenAI (GPT-4) or Anthropic (Claude) streaming chat completions.
+ * No default/free AI — users must bring their own keys.
  */
 
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from './prisma';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -24,31 +23,26 @@ export interface StreamCallbacks {
   onError: (error: Error) => void;
 }
 
-// ─── API Key Retrieval ───────────────────────────────────────────────────────
-
-async function getApiKey(provider: LLMProvider): Promise<string | null> {
-  const key = await prisma.agentApiKey.findFirst({
-    where: { provider, isActive: true },
-    orderBy: { createdAt: 'desc' },
-  });
-  return key?.apiKey || null;
-}
-
 /**
- * Determine which provider to use based on available keys.
- * Prefers OpenAI, falls back to Anthropic.
+ * Fetch the user's active API key from the database.
+ * Tries preferred provider first, then falls back to the other.
  */
-export async function getAvailableProvider(): Promise<{
-  provider: LLMProvider;
-  apiKey: string;
-} | null> {
-  // Try OpenAI first
-  const openaiKey = await getApiKey('openai');
-  if (openaiKey) return { provider: 'openai', apiKey: openaiKey };
+export async function getAvailableProvider(
+  preferredProvider?: LLMProvider
+): Promise<{ provider: LLMProvider; apiKey: string } | null> {
+  const order: LLMProvider[] = preferredProvider
+    ? [preferredProvider, preferredProvider === 'openai' ? 'anthropic' : 'openai']
+    : ['openai', 'anthropic'];
 
-  // Fallback to Anthropic
-  const anthropicKey = await getApiKey('anthropic');
-  if (anthropicKey) return { provider: 'anthropic', apiKey: anthropicKey };
+  for (const p of order) {
+    const key = await prisma.agentApiKey.findFirst({
+      where: { provider: p, isActive: true },
+      select: { apiKey: true },
+    });
+    if (key?.apiKey) {
+      return { provider: p, apiKey: key.apiKey };
+    }
+  }
 
   return null;
 }
@@ -60,34 +54,27 @@ async function streamOpenAI(
   messages: LLMMessage[],
   callbacks: StreamCallbacks
 ): Promise<void> {
-  const client = new OpenAI({ apiKey });
-
-  try {
-    const stream = await client.chat.completions.create({
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
       model: 'gpt-4o',
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
       max_tokens: 4096,
       temperature: 0.7,
       stream: true,
-    });
+    }),
+  });
 
-    let fullText = '';
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content;
-      if (delta) {
-        fullText += delta;
-        callbacks.onToken(delta);
-      }
-    }
-
-    callbacks.onDone(fullText);
-  } catch (error: any) {
-    callbacks.onError(new Error(`OpenAI error: ${error.message}`));
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`OpenAI API error (${response.status}): ${errText}`);
   }
+
+  await readSSEStream(response, callbacks);
 }
 
 // ─── Anthropic Streaming ─────────────────────────────────────────────────────
@@ -97,119 +84,150 @@ async function streamAnthropic(
   messages: LLMMessage[],
   callbacks: StreamCallbacks
 ): Promise<void> {
-  const client = new Anthropic({ apiKey });
-
-  // Anthropic uses a separate system parameter
+  // Separate system prompt from messages for Anthropic format
   const systemMsg = messages.find((m) => m.role === 'system');
   const chatMessages = messages
     .filter((m) => m.role !== 'system')
-    .map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-  try {
-    const stream = await client.messages.stream({
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      temperature: 0.7,
       system: systemMsg?.content || '',
       messages: chatMessages,
-    });
+      stream: true,
+    }),
+  });
 
-    let fullText = '';
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+  }
 
-    for await (const event of stream) {
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
-        const text = event.delta.text;
-        fullText += text;
-        callbacks.onToken(text);
+  // Anthropic SSE has different event format
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let partial = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    partial += decoder.decode(value, { stream: true });
+    const lines = partial.split('\n');
+    partial = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6);
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta') {
+            const text = parsed.delta?.text || '';
+            if (text) {
+              fullText += text;
+              callbacks.onToken(text);
+            }
+          } else if (parsed.type === 'message_stop') {
+            callbacks.onDone(fullText);
+            return;
+          }
+        } catch {
+          // skip
+        }
       }
     }
-
-    callbacks.onDone(fullText);
-  } catch (error: any) {
-    callbacks.onError(new Error(`Anthropic error: ${error.message}`));
   }
+
+  callbacks.onDone(fullText);
+}
+
+// ─── Shared SSE Reader (OpenAI-format) ──────────────────────────────────────
+
+async function readSSEStream(
+  response: Response,
+  callbacks: StreamCallbacks
+): Promise<void> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body from LLM API');
+
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let partial = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    partial += decoder.decode(value, { stream: true });
+    const lines = partial.split('\n');
+    partial = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6);
+        if (data === '[DONE]') {
+          callbacks.onDone(fullText);
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed?.choices?.[0]?.delta?.content || '';
+          if (content) {
+            fullText += content;
+            callbacks.onToken(content);
+          }
+        } catch {
+          // skip
+        }
+      }
+    }
+  }
+
+  callbacks.onDone(fullText);
 }
 
 // ─── Main Streaming Function ─────────────────────────────────────────────────
 
 /**
- * Stream LLM response with automatic provider selection and fallback.
+ * Stream LLM response using the user's own API keys.
+ * Requires at least one active OpenAI or Anthropic key in settings.
  */
 export async function streamLLMResponse(
   messages: LLMMessage[],
   callbacks: StreamCallbacks,
   preferredProvider?: LLMProvider
 ): Promise<void> {
-  // Get available providers
-  const providers: { provider: LLMProvider; apiKey: string }[] = [];
+  const available = await getAvailableProvider(preferredProvider);
 
-  const openaiKey = await getApiKey('openai');
-  const anthropicKey = await getApiKey('anthropic');
-
-  if (openaiKey) providers.push({ provider: 'openai', apiKey: openaiKey });
-  if (anthropicKey) providers.push({ provider: 'anthropic', apiKey: anthropicKey });
-
-  if (providers.length === 0) {
+  if (!available) {
     callbacks.onError(
-      new Error('No API keys configured. Please add an OpenAI or Anthropic API key in Settings.')
+      new Error(
+        'No API key configured. Go to Settings and add your OpenAI or Anthropic API key to enable the AI agent.'
+      )
     );
     return;
   }
 
-  // Sort preferred provider first
-  if (preferredProvider) {
-    providers.sort((a, b) =>
-      a.provider === preferredProvider ? -1 : b.provider === preferredProvider ? 1 : 0
-    );
-  }
-
-  // Try each provider with fallback
-  for (let i = 0; i < providers.length; i++) {
-    const { provider, apiKey } = providers[i];
-    const isLast = i === providers.length - 1;
-
-    try {
-      if (provider === 'openai') {
-        await streamOpenAI(apiKey, messages, {
-          onToken: callbacks.onToken,
-          onDone: callbacks.onDone,
-          onError: (error) => {
-            if (isLast) {
-              callbacks.onError(error);
-            } else {
-              console.warn(`[llm] ${provider} failed, trying fallback:`, error.message);
-              // Will continue to next provider in loop
-            }
-          },
-        });
-      } else {
-        await streamAnthropic(apiKey, messages, {
-          onToken: callbacks.onToken,
-          onDone: callbacks.onDone,
-          onError: (error) => {
-            if (isLast) {
-              callbacks.onError(error);
-            } else {
-              console.warn(`[llm] ${provider} failed, trying fallback:`, error.message);
-            }
-          },
-        });
-      }
-
-      // If we got here without throwing, the stream succeeded
-      return;
-    } catch (error: any) {
-      if (isLast) {
-        callbacks.onError(error);
-      } else {
-        console.warn(`[llm] ${provider} threw, trying fallback:`, error.message);
-      }
+  try {
+    if (available.provider === 'anthropic') {
+      await streamAnthropic(available.apiKey, messages, callbacks);
+    } else {
+      await streamOpenAI(available.apiKey, messages, callbacks);
     }
+  } catch (error: any) {
+    callbacks.onError(
+      new Error(`LLM streaming error: ${error?.message || 'Unknown error'}`)
+    );
   }
 }
