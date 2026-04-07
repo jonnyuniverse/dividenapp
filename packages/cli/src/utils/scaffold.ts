@@ -65,6 +65,7 @@ export async function scaffoldProject(
     'node_modules', '.next', '.build', '.env', '.env.local',
     'dist', 'build', 'out', '.turbo', '.git', 'dev.db',
     'tsconfig.tsbuildinfo', 'next-env.d.ts',
+    '.yarn', '.yarnrc.yml', 'yarn.lock', 'package-lock.json',
   ]);
 
   async function copyFiltered(src: string, dest: string): Promise<void> {
