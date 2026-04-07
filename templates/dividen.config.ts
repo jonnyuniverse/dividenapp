@@ -2,7 +2,7 @@
  * DiviDen Command Center Configuration
  * 
  * Customize your Command Center behavior here.
- * See docs for all available options.
+ * See docs for all available options: https://github.com/jonnyuniverse/dividenapp
  */
 
 export interface DividenConfig {
@@ -14,29 +14,20 @@ export interface DividenConfig {
   port: number;
   /** AI provider configuration */
   ai: {
-    /** Default AI provider */
     defaultProvider: 'openai' | 'anthropic';
-    /** OpenAI model to use */
     openaiModel: string;
-    /** Anthropic model to use */
     anthropicModel: string;
-    /** Maximum tokens per response */
     maxTokens: number;
-    /** Temperature for AI responses (0-1) */
     temperature: number;
   };
   /** Kanban board configuration */
   kanban: {
-    /** Pipeline stages (columns) */
     stages: { id: string; label: string; color: string }[];
   };
   /** Dashboard configuration */
   dashboard: {
-    /** Default center panel tab */
-    defaultTab: 'chat' | 'kanban' | 'crm';
-    /** Show the NOW panel */
+    defaultTab: 'chat' | 'board' | 'crm' | 'calendar' | 'inbox' | 'recordings' | 'drive';
     showNowPanel: boolean;
-    /** Show the Queue panel */
     showQueuePanel: boolean;
   };
 }
@@ -58,8 +49,12 @@ const config: DividenConfig = {
       { id: 'qualifying', label: 'Qualifying', color: '#60a5fa' },
       { id: 'proposal', label: 'Proposal', color: '#a78bfa' },
       { id: 'negotiation', label: 'Negotiation', color: '#fbbf24' },
-      { id: 'won', label: 'Won', color: '#34d399' },
-      { id: 'lost', label: 'Lost', color: '#f87171' },
+      { id: 'contracted', label: 'Contracted', color: '#2dd4bf' },
+      { id: 'active', label: 'Active', color: '#34d399' },
+      { id: 'development', label: 'Development', color: '#818cf8' },
+      { id: 'planning', label: 'Planning', color: '#c084fc' },
+      { id: 'paused', label: 'Paused', color: '#fb923c' },
+      { id: 'completed', label: 'Completed', color: '#4ade80' },
     ],
   },
   dashboard: {

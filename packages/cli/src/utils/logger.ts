@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-const BRAND = chalk.hex('#7C3AED').bold('⬡ DiviDen');
+const BRAND = chalk.hex('#4f7cff').bold('⬡ DiviDen');
 const DIVIDER = chalk.gray('─'.repeat(50));
 
 export const logger = {
@@ -29,7 +29,7 @@ export const logger = {
   },
 
   step(step: number, total: number, message: string): void {
-    console.log(`  ${chalk.hex('#7C3AED')(`[${step}/${total}]`)} ${message}`);
+    console.log(`  ${chalk.hex('#4f7cff')(`[${step}/${total}]`)} ${message}`);
   },
 
   blank(): void {

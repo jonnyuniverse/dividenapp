@@ -1,7 +1,9 @@
 // ─── Webhook Auto-Action Executor ──────────────────────────────────────────
 // Maps webhook payloads to DiviDen actions (create cards, contacts, queue items)
+// Supports auto-learned field maps + manual overrides + default sniffing fallback
 
 import { prisma } from '@/lib/prisma';
+import { parseMappingConfig, type WebhookFieldMap } from '@/lib/webhook-learn';
 
 export interface WebhookActionResult {
   action: string;
@@ -44,29 +46,80 @@ function applyMapping(payload: any, mapping: Record<string, string>): Record<str
   return result;
 }
 
+/**
+ * Extract fields from a payload using a learned/manual field map.
+ * Returns null for any field not in the map.
+ */
+function extractWithFieldMap(payload: any, fieldMap: WebhookFieldMap): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [targetField, sourcePath] of Object.entries(fieldMap)) {
+    result[targetField] = extractField(payload, sourcePath);
+  }
+  return result;
+}
+
 // ─── Calendar Event Processing ──────────────────────────────────────────────
 
 export async function processCalendarEvent(
   payload: any,
   userId: string,
-  mappingRules?: MappingRule[]
+  mappingRules?: MappingRule[],
+  fieldMap?: WebhookFieldMap
 ): Promise<WebhookActionResult[]> {
   const results: WebhookActionResult[] = [];
 
   try {
-    // If custom mapping rules exist, use them
+    // If legacy custom mapping rules exist, use them
     if (mappingRules && mappingRules.length > 0) {
       return executeCustomMappings(payload, userId, mappingRules);
     }
 
-    // Default calendar processing: create a queue item for each event
-    const summary = payload.summary || payload.title || payload.subject || 'Calendar Event';
-    const description = payload.description || payload.body || '';
-    const startTime = payload.start?.dateTime || payload.start || payload.startTime || '';
-    const endTime = payload.end?.dateTime || payload.end || payload.endTime || '';
-    const attendees = payload.attendees || [];
+    let summary: string, description: string, startTime: string, endTime: string, attendees: any[];
 
-    // Create a queue item
+    if (fieldMap && Object.keys(fieldMap).length > 0) {
+      // Use learned/manual field map — extract via mapped paths, fall back to sniffing
+      const mapped = extractWithFieldMap(payload, fieldMap);
+      summary = mapped.title || payload.summary || payload.title || payload.subject || 'Calendar Event';
+      description = mapped.description || payload.description || payload.body || '';
+      startTime = mapped.startTime || payload.start?.dateTime || payload.start || payload.startTime || '';
+      endTime = mapped.endTime || payload.end?.dateTime || payload.end || payload.endTime || '';
+      attendees = mapped.attendees || payload.attendees || [];
+    } else {
+      // Default field sniffing
+      summary = payload.summary || payload.title || payload.subject || 'Calendar Event';
+      description = payload.description || payload.body || '';
+      startTime = payload.start?.dateTime || payload.start || payload.startTime || '';
+      endTime = payload.end?.dateTime || payload.end || payload.endTime || '';
+      attendees = payload.attendees || [];
+    }
+
+    // Create a CalendarEvent record
+    const parsedStart = startTime ? new Date(startTime) : new Date();
+    const parsedEnd = endTime ? new Date(endTime) : null;
+    const externalId = payload.id || payload.eventId || payload.iCalUID || null;
+
+    const calendarEvent = await prisma.calendarEvent.create({
+      data: {
+        title: summary,
+        description: description || null,
+        startTime: parsedStart,
+        endTime: parsedEnd,
+        location: payload.location || null,
+        attendees: attendees.length > 0 ? JSON.stringify(attendees) : null,
+        source: 'webhook',
+        externalId,
+        metadata: JSON.stringify(payload),
+        userId,
+      },
+    });
+
+    results.push({
+      action: 'create_calendar_event',
+      success: true,
+      data: { id: calendarEvent.id, title: calendarEvent.title },
+    });
+
+    // Also create a queue item
     const queueItem = await prisma.queueItem.create({
       data: {
         type: 'task',
@@ -139,7 +192,8 @@ export async function processCalendarEvent(
 export async function processEmailEvent(
   payload: any,
   userId: string,
-  mappingRules?: MappingRule[]
+  mappingRules?: MappingRule[],
+  fieldMap?: WebhookFieldMap
 ): Promise<WebhookActionResult[]> {
   const results: WebhookActionResult[] = [];
 
@@ -148,11 +202,21 @@ export async function processEmailEvent(
       return executeCustomMappings(payload, userId, mappingRules);
     }
 
-    const from = payload.from || payload.sender || {};
-    const subject = payload.subject || payload.title || 'No Subject';
-    const body = payload.body || payload.text || payload.snippet || '';
-    const senderName = from.name || from.email?.split('@')[0] || 'Unknown';
-    const senderEmail = from.email || from.address || null;
+    let subject: string, body: string, senderName: string, senderEmail: string | null;
+
+    if (fieldMap && Object.keys(fieldMap).length > 0) {
+      const mapped = extractWithFieldMap(payload, fieldMap);
+      subject = mapped.subject || payload.subject || payload.title || 'No Subject';
+      body = mapped.body || payload.body || payload.text || payload.snippet || '';
+      senderName = mapped.fromName || (payload.from || payload.sender || {}).name || 'Unknown';
+      senderEmail = mapped.fromEmail || (payload.from || payload.sender || {}).email || (payload.from || payload.sender || {}).address || null;
+    } else {
+      const from = payload.from || payload.sender || {};
+      subject = payload.subject || payload.title || 'No Subject';
+      body = payload.body || payload.text || payload.snippet || '';
+      senderName = from.name || from.email?.split('@')[0] || 'Unknown';
+      senderEmail = from.email || from.address || null;
+    }
 
     // Create or update contact from sender
     if (senderEmail) {
@@ -178,7 +242,39 @@ export async function processEmailEvent(
       }
     }
 
-    // Create a queue item for the email
+    // Create an EmailMessage record
+    const toEmail = payload.to?.email || payload.to?.address || payload.to || payload.recipient || null;
+    const snippet = (body || '').substring(0, 200);
+    const labels = payload.labels || payload.labelIds || null;
+    const receivedAt = payload.date || payload.receivedAt || payload.internalDate
+      ? new Date(payload.date || payload.receivedAt || payload.internalDate)
+      : new Date();
+
+    const emailRecord = await prisma.emailMessage.create({
+      data: {
+        subject,
+        fromName: senderName,
+        fromEmail: senderEmail,
+        toEmail: typeof toEmail === 'string' ? toEmail : null,
+        body: body.substring(0, 10000),
+        snippet,
+        labels: labels ? (typeof labels === 'string' ? labels : JSON.stringify(labels)) : null,
+        isRead: false,
+        isStarred: false,
+        source: 'webhook',
+        metadata: JSON.stringify(payload),
+        receivedAt,
+        userId,
+      },
+    });
+
+    results.push({
+      action: 'create_email_message',
+      success: true,
+      data: { id: emailRecord.id, subject: emailRecord.subject },
+    });
+
+    // Also create a queue item for the email
     const queueItem = await prisma.queueItem.create({
       data: {
         type: 'notification',
@@ -213,7 +309,8 @@ export async function processEmailEvent(
 export async function processTranscriptEvent(
   payload: any,
   userId: string,
-  mappingRules?: MappingRule[]
+  mappingRules?: MappingRule[],
+  fieldMap?: WebhookFieldMap
 ): Promise<WebhookActionResult[]> {
   const results: WebhookActionResult[] = [];
 
@@ -222,10 +319,20 @@ export async function processTranscriptEvent(
       return executeCustomMappings(payload, userId, mappingRules);
     }
 
-    const title = payload.title || payload.meetingTitle || 'Meeting Transcript';
-    const transcript = payload.transcript || payload.text || payload.content || '';
-    const actionItems = payload.actionItems || payload.action_items || [];
-    const participants = payload.participants || payload.attendees || [];
+    let title: string, transcript: string, actionItems: any[], participants: any[];
+
+    if (fieldMap && Object.keys(fieldMap).length > 0) {
+      const mapped = extractWithFieldMap(payload, fieldMap);
+      title = mapped.title || payload.title || payload.meetingTitle || 'Meeting Transcript';
+      transcript = mapped.transcript || payload.transcript || payload.text || payload.content || '';
+      actionItems = mapped.actionItems || payload.actionItems || payload.action_items || [];
+      participants = mapped.participants || payload.participants || payload.attendees || [];
+    } else {
+      title = payload.title || payload.meetingTitle || 'Meeting Transcript';
+      transcript = payload.transcript || payload.text || payload.content || '';
+      actionItems = payload.actionItems || payload.action_items || [];
+      participants = payload.participants || payload.attendees || [];
+    }
 
     // Create a kanban card for the meeting
     const card = await prisma.kanbanCard.create({
@@ -315,7 +422,8 @@ export async function processTranscriptEvent(
 export async function processGenericEvent(
   payload: any,
   userId: string,
-  mappingRules?: MappingRule[]
+  mappingRules?: MappingRule[],
+  fieldMap?: WebhookFieldMap
 ): Promise<WebhookActionResult[]> {
   const results: WebhookActionResult[] = [];
 
@@ -324,9 +432,16 @@ export async function processGenericEvent(
       return executeCustomMappings(payload, userId, mappingRules);
     }
 
-    // Default: create a queue item with the raw payload
-    const title = payload.title || payload.subject || payload.name || payload.event || 'Webhook Event';
-    const description = payload.description || payload.body || payload.message || JSON.stringify(payload, null, 2).substring(0, 500);
+    let title: string, description: string;
+
+    if (fieldMap && Object.keys(fieldMap).length > 0) {
+      const mapped = extractWithFieldMap(payload, fieldMap);
+      title = mapped.title || payload.title || payload.subject || payload.name || payload.event || 'Webhook Event';
+      description = mapped.description || payload.description || payload.body || payload.message || JSON.stringify(payload, null, 2).substring(0, 500);
+    } else {
+      title = payload.title || payload.subject || payload.name || payload.event || 'Webhook Event';
+      description = payload.description || payload.body || payload.message || JSON.stringify(payload, null, 2).substring(0, 500);
+    }
 
     const queueItem = await prisma.queueItem.create({
       data: {

@@ -226,7 +226,7 @@ export function ChatView() {
               DiviDen Command Center
             </h3>
             <p className="text-sm text-[var(--text-muted)] max-w-md mb-3">
-              Chat with your AI agent. Ask questions, delegate tasks, or get
+              Chat with Divi, your AI agent. Ask questions, delegate tasks, or get
               status updates on your projects.
             </p>
             <div className="bg-[var(--bg-surface)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
@@ -325,15 +325,15 @@ export function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-[var(--border-color)] p-4">
+      <div className="border-t border-[var(--border-color)] p-3 md:p-4">
         <div className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? 'Waiting for response...' : 'Type a message to your AI agent...'}
-            className="input-field flex-1"
+            placeholder={isStreaming ? 'Divi is thinking...' : 'Message Divi...'}
+            className="input-field flex-1 text-sm md:text-base"
             disabled={isStreaming}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -344,7 +344,7 @@ export function ChatView() {
           />
           <button
             className={cn(
-              'btn-primary px-6 transition-opacity',
+              'btn-primary px-3 md:px-6 transition-opacity',
               (isStreaming || !input.trim()) && 'opacity-50 cursor-not-allowed'
             )}
             onClick={() => sendMessage()}
@@ -374,7 +374,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             : 'bg-[var(--brand-primary)] text-white'
         )}
       >
-        {isUser ? 'U' : 'AI'}
+        {isUser ? 'U' : 'D'}
       </div>
 
       {/* Content */}

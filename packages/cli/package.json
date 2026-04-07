@@ -1,7 +1,7 @@
 {
   "name": "dividen",
-  "version": "1.0.0",
-  "description": "DiviDen Command Center CLI — scaffold and manage AI-human coordination projects",
+  "version": "0.1.0",
+  "description": "DiviDen Command Center CLI \u2014 scaffold and manage AI-human coordination projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {

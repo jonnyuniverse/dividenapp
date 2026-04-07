@@ -4,7 +4,7 @@ export type DividenMode = 'cockpit' | 'chief_of_staff';
 
 // ─── Kanban Types ───────────────────────────────────────────────────────────
 
-export type CardStatus = 'leads' | 'qualifying' | 'proposal' | 'negotiation' | 'active' | 'development' | 'completed';
+export type CardStatus = 'leads' | 'qualifying' | 'proposal' | 'negotiation' | 'contracted' | 'active' | 'development' | 'planning' | 'paused' | 'completed';
 export type CardPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type CardAssignee = 'human' | 'agent';
 
@@ -13,8 +13,11 @@ export const KANBAN_COLUMNS: { id: CardStatus; label: string; color: string }[] 
   { id: 'qualifying', label: 'Qualifying', color: '#60a5fa' },
   { id: 'proposal', label: 'Proposal', color: '#a78bfa' },
   { id: 'negotiation', label: 'Negotiation', color: '#fbbf24' },
+  { id: 'contracted', label: 'Contracted', color: '#f59e0b' },
   { id: 'active', label: 'Active', color: '#34d399' },
   { id: 'development', label: 'Development', color: '#2dd4bf' },
+  { id: 'planning', label: 'Planning', color: '#818cf8' },
+  { id: 'paused', label: 'Paused', color: '#6b7280' },
   { id: 'completed', label: 'Completed', color: '#a78bfa' },
 ];
 
@@ -167,7 +170,85 @@ export interface ApiResponse<T = unknown> {
 
 // ─── Dashboard Tab Types ────────────────────────────────────────────────────
 
-export type CenterTab = 'chat' | 'kanban' | 'crm';
+export type CenterTab = 'chat' | 'kanban' | 'crm' | 'recordings' | 'drive' | 'calendar' | 'inbox';
+
+// ─── Calendar Types ──────────────────────────────────────────────────────────
+
+export interface CalendarEventData {
+  id: string;
+  title: string;
+  description: string | null;
+  startTime: string;
+  endTime: string | null;
+  location: string | null;
+  attendees: string | null;
+  source: string;
+  externalId: string | null;
+  metadata: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Email Types ─────────────────────────────────────────────────────────────
+
+export interface EmailMessageData {
+  id: string;
+  subject: string;
+  fromName: string | null;
+  fromEmail: string | null;
+  toEmail: string | null;
+  body: string | null;
+  snippet: string | null;
+  labels: string | null;
+  isRead: boolean;
+  isStarred: boolean;
+  source: string;
+  externalId: string | null;
+  linkedCardId: string | null;
+  linkedContactId: string | null;
+  metadata: string | null;
+  userId: string;
+  receivedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  linkedCard?: { id: string; title: string; status: string } | null;
+  linkedContact?: { id: string; name: string; company: string | null } | null;
+}
+
+// ─── Comms Channel Types ─────────────────────────────────────────────────────
+
+export type CommsSender = 'user' | 'divi' | 'system';
+export type CommsState = 'new' | 'read' | 'acknowledged' | 'resolved' | 'dismissed';
+export type CommsPriority = 'urgent' | 'normal' | 'low';
+
+export interface CommsMessageData {
+  id: string;
+  sender: CommsSender;
+  content: string;
+  state: CommsState;
+  priority: CommsPriority;
+  linkedCardId: string | null;
+  linkedContactId: string | null;
+  linkedRecordingId: string | null;
+  linkedDocumentId: string | null;
+  metadata: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  linkedCard?: { id: string; title: string; status: string } | null;
+  linkedContact?: { id: string; name: string; company: string | null } | null;
+  linkedRecording?: { id: string; title: string } | null;
+  linkedDocument?: { id: string; title: string; type: string } | null;
+}
+
+export const COMMS_STATES: { id: CommsState; label: string; color: string }[] = [
+  { id: 'new', label: 'New', color: '#4f7cff' },
+  { id: 'read', label: 'Read', color: '#94a3b8' },
+  { id: 'acknowledged', label: 'Acknowledged', color: '#fbbf24' },
+  { id: 'resolved', label: 'Resolved', color: '#34d399' },
+  { id: 'dismissed', label: 'Dismissed', color: '#6b7280' },
+];
 
 // ─── Auth Types ─────────────────────────────────────────────────────────────
 

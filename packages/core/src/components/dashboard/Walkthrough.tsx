@@ -14,14 +14,14 @@ const STEPS: WalkthroughStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to DiviDen',
-    description: 'Your personal command center for coordinating work between you and AI agents. Let\'s take a quick tour of the key areas.',
+    description: 'Your personal command center for coordinating work between you and Divi, your AI agent. Let\'s take a quick tour of the key areas.',
     targetSelector: '[data-walkthrough="brand"]',
     position: 'bottom',
   },
   {
     id: 'mode-toggle',
     title: 'Operating Mode',
-    description: 'Toggle between Cockpit (you drive, AI assists) and Chief of Staff (AI drives, you approve). This changes how the agent behaves.',
+    description: 'Toggle between Cockpit (you drive, Divi assists) and Chief of Staff (Divi drives, you approve). This changes how the agent behaves.',
     targetSelector: '[data-walkthrough="mode-toggle"]',
     position: 'bottom',
   },
@@ -35,21 +35,28 @@ const STEPS: WalkthroughStep[] = [
   {
     id: 'center-panel',
     title: 'Center Panel',
-    description: 'The main workspace. Chat with your AI agent, manage your Kanban board, or work with your CRM contacts. Switch between views using the tabs.',
+    description: 'The main workspace. Chat with Divi, manage your Kanban board, CRM contacts, documents, and recordings. Switch between views using the tabs.',
     targetSelector: '[data-walkthrough="center-panel"]',
     position: 'left',
   },
   {
     id: 'queue-panel',
     title: 'Queue Panel',
-    description: 'Your task queue. Items flow through Ready → In Progress → Done. The agent can add suggestions here, and you can dispatch tasks with a click.',
+    description: 'Your task queue. Items flow through Ready → In Progress → Done. Divi can add suggestions here, and you can dispatch tasks with a click.',
     targetSelector: '[data-walkthrough="queue-panel"]',
     position: 'left',
   },
   {
+    id: 'comms',
+    title: 'Comms Channel',
+    description: 'Your structured task-passing channel with Divi. Send tasks, receive proactive updates, and track every message through its lifecycle — new → read → acknowledged → resolved.',
+    targetSelector: '[data-walkthrough="comms"]',
+    position: 'bottom',
+  },
+  {
     id: 'settings',
     title: 'Settings & API Keys',
-    description: 'Head to Settings to add your OpenAI or Anthropic API key to enable the AI agent. You can also configure webhooks, manage memory, and more.',
+    description: 'Head to Settings to add your OpenAI or Anthropic API key to enable Divi. You can also configure webhooks, manage memory, and more.',
     targetSelector: '[data-walkthrough="settings"]',
     position: 'bottom',
   },
@@ -106,39 +113,55 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
 
   if (!step || !targetRect) return null;
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   // Calculate tooltip position
-  const PADDING = 12;
-  const TOOLTIP_GAP = 16;
+  const PADDING = isMobile ? 8 : 12;
+  const TOOLTIP_GAP = isMobile ? 12 : 16;
   const getTooltipStyle = (): React.CSSProperties => {
     const base: React.CSSProperties = {
       position: 'fixed',
       zIndex: 10002,
-      maxWidth: 360,
       transition: 'all 0.3s ease',
     };
 
+    // On mobile: always position below or above, full width with margins
+    if (isMobile) {
+      const spaceBelow = window.innerHeight - targetRect.bottom;
+      const spaceAbove = targetRect.top;
+      if (spaceBelow > 200 || spaceBelow > spaceAbove) {
+        return { ...base, top: targetRect.bottom + TOOLTIP_GAP, left: 12, right: 12 };
+      }
+      return { ...base, bottom: window.innerHeight - targetRect.top + TOOLTIP_GAP, left: 12, right: 12 };
+    }
+
+    // Desktop: position based on step config
     switch (step.position) {
       case 'bottom':
         return {
           ...base,
+          maxWidth: 360,
           top: targetRect.bottom + TOOLTIP_GAP,
           left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 376)),
         };
       case 'top':
         return {
           ...base,
+          maxWidth: 360,
           bottom: window.innerHeight - targetRect.top + TOOLTIP_GAP,
           left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 376)),
         };
       case 'right':
         return {
           ...base,
+          maxWidth: 360,
           top: targetRect.top,
           left: targetRect.right + TOOLTIP_GAP,
         };
       case 'left':
         return {
           ...base,
+          maxWidth: 360,
           top: targetRect.top,
           right: window.innerWidth - targetRect.left + TOOLTIP_GAP,
         };

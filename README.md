@@ -9,23 +9,38 @@ DiviDen is an open-source framework for building intelligent command centers whe
 
 ## 🚀 Quick Start
 
+### Option 1: Clone & Run (recommended)
+
 ```bash
-# Create a new DiviDen project
-npx dividen init my-command-center
-cd my-command-center
+# Clone the repository
+git clone https://github.com/jonnyuniverse/dividenapp.git my-command-center
+cd my-command-center/packages/core
+
+# Install dependencies
+npm install
 
 # Configure your environment
-cp .env.example .env
-# Edit .env with your database URL and API keys
+cp ../../templates/.env.example .env
+# Edit .env with your PostgreSQL DATABASE_URL and API keys
 
 # Set up the database
 npx prisma db push
 
 # Start the development server
-npx dividen dev
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to access your Command Center.
+### Option 2: NPX Installer (coming soon to npm)
+
+```bash
+npx dividen init my-command-center
+cd my-command-center
+# Edit .env with your database URL and API keys
+npx prisma db push
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to access your Command Center. Visit `/setup` to create your admin account.
 
 ## ✨ Features
 
@@ -33,7 +48,8 @@ Open [http://localhost:3000](http://localhost:3000) to access your Command Cente
 - **🤖 Divi AI Agent** — Conversational AI powered by GPT-4o or Claude with 16-layer contextual system prompt and automatic action execution
 - **📊 Kanban Board** — 10-stage drag-and-drop pipeline (leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed)
 - **📋 Smart Queue** — Priority-based task dispatch with ready/in-progress/done/blocked states + activity feed
-- **👥 CRM** — Contact management with auto-linking to Kanban cards and enrichment
+- **👥 CRM** — Contact management with auto-linking, enrichment, activity timeline, and relationship mapping (8 types: colleague, manager, report, partner, spouse, friend, referral, custom)
+- **🔍 Global Search** — `⌘K` command palette searching across all entities (cards, contacts, docs, recordings, emails, events, comms, queue)
 - **🧠 3-Tier Memory System** — Explicit facts, behavioral rules, and learned patterns
 - **🎯 Dual Mode** — Switch between "Cockpit" (hands-on) and "Chief of Staff" (delegation) modes
 
