@@ -34,7 +34,10 @@ model User {
   webhooks      Webhook[]
   serviceApiKeys ServiceApiKey[]
   documents     Document[]
-  recordings    Recording[]
+  recordings      Recording[]
+  commsMessages   CommsMessage[]
+  calendarEvents  CalendarEvent[]
+  emailMessages   EmailMessage[]
 
   @@map("users")
 }
@@ -58,7 +61,9 @@ model KanbanCard {
   checklist   ChecklistItem[]
   contacts    CardContact[]
   documents   Document[]
-  recordings  Recording[]
+  recordings    Recording[]
+  commsMessages CommsMessage[]
+  emailMessages EmailMessage[]
 
   @@map("kanban_cards")
 }
@@ -141,7 +146,9 @@ model Contact {
   updatedAt    DateTime      @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards        CardContact[]
+  cards         CardContact[]
+  commsMessages CommsMessage[]
+  emailMessages EmailMessage[]
 
   @@map("contacts")
 }
@@ -286,6 +293,8 @@ model Document {
   content     String?  // Markdown content
   type        String   @default("note") // "note" | "report" | "template" | "meeting_notes"
   tags        String?  // Comma-separated
+  url         String?  // External file URL (Google Drive, Dropbox, etc.)
+  fileSource  String   @default("local") // "local" | "google_drive" | "dropbox" | "onedrive" | "url"
   cardId      String?  // Optional link to a KanbanCard
   userId      String
   createdAt   DateTime @default(now())
@@ -293,6 +302,7 @@ model Document {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  commsMessages CommsMessage[]
 
   @@index([userId])
   @@map("documents")
@@ -316,6 +326,7 @@ model Recording {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  commsMessages CommsMessage[]
 
   @@index([userId])
   @@map("recordings")
@@ -335,6 +346,92 @@ model ActivityLog {
   @@index([userId])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// ─── Calendar Events ─────────────────────────────────────────────────────────
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime?
+  location    String?
+  attendees   String?   // JSON array of attendees
+  source      String    @default("webhook") // "webhook" | "manual" | "google"
+  externalId  String?   // ID from external system
+  metadata    String?   // JSON string
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startTime])
+  @@map("calendar_events")
+}
+
+// ─── Email Messages ──────────────────────────────────────────────────────────
+
+model EmailMessage {
+  id              String     @id @default(cuid())
+  subject         String
+  fromName        String?
+  fromEmail       String?
+  toEmail         String?
+  body            String?    // Full body or preview
+  snippet         String?    // Short preview
+  labels          String?    // Comma-separated: "inbox,important,starred"
+  isRead          Boolean    @default(false)
+  isStarred       Boolean    @default(false)
+  source          String     @default("webhook") // "webhook" | "manual" | "gmail"
+  externalId      String?    // ID from external system
+  linkedCardId    String?
+  linkedContactId String?
+  metadata        String?    // JSON string
+  userId          String
+  receivedAt      DateTime   @default(now())
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedCard      KanbanCard? @relation(fields: [linkedCardId], references: [id], onDelete: SetNull)
+  linkedContact   Contact?   @relation(fields: [linkedContactId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([receivedAt])
+  @@index([isRead])
+  @@map("email_messages")
+}
+
+// ─── Comms Channel ───────────────────────────────────────────────────────────
+
+model CommsMessage {
+  id              String     @id @default(cuid())
+  sender          String     // "user" | "divi" | "system"
+  content         String
+  state           String     @default("new") // "new" | "read" | "acknowledged" | "resolved" | "dismissed"
+  priority        String     @default("normal") // "urgent" | "normal" | "low"
+  linkedCardId    String?
+  linkedContactId String?
+  linkedRecordingId String?
+  linkedDocumentId String?
+  metadata        String?    // JSON string for flexible data
+  userId          String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedCard      KanbanCard? @relation(fields: [linkedCardId], references: [id], onDelete: SetNull)
+  linkedContact   Contact?   @relation(fields: [linkedContactId], references: [id], onDelete: SetNull)
+  linkedRecording Recording? @relation(fields: [linkedRecordingId], references: [id], onDelete: SetNull)
+  linkedDocument  Document?  @relation(fields: [linkedDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([state])
+  @@index([createdAt])
+  @@map("comms_messages")
 }
 
 // External Agent API Keys for v2 API authentication
