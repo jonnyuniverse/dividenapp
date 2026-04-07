@@ -190,3 +190,19 @@ export interface ApiKey {
   isActive: boolean;
   createdAt: string;
 }
+
+// ─── External Agent API Key Types ────────────────────────────────────────
+
+export type ApiPermission = 'queue' | 'chat' | 'kanban' | 'contacts';
+
+export interface ExternalApiKeyData {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  permissions: string; // 'all' or JSON array of ApiPermission
+  isActive: boolean;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  usageCount: number;
+  createdAt: string;
+}

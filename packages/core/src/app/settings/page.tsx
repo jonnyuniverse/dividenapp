@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ModeToggle } from '@/components/settings/ModeToggle';
 import { ApiKeyManager } from '@/components/settings/ApiKeyManager';
 import { MemoryPanel } from '@/components/dashboard/MemoryPanel';
+import { ExternalKeyManager } from '@/components/settings/ExternalKeyManager';
 
 interface SettingsData {
   user: {
@@ -215,6 +216,29 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Agent API Keys (v2) */}
+      <div className="panel">
+        <div className="panel-header flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">Agent API Keys</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              Bearer tokens for external AI agents to connect via the v2 API
+            </p>
+          </div>
+          <a
+            href="/api/v2/docs"
+            target="_blank"
+            className="text-xs text-brand-400 hover:text-brand-300"
+          >
+            📄 API Docs
+          </a>
+        </div>
+        <div className="panel-body">
+          <ExternalKeyManager />
+        </div>
+      </div>
+
 
       {/* API Keys */}
       <div className="panel">
