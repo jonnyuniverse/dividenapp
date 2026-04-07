@@ -5,6 +5,9 @@ import { ModeToggle } from '@/components/settings/ModeToggle';
 import { ApiKeyManager } from '@/components/settings/ApiKeyManager';
 import { MemoryPanel } from '@/components/dashboard/MemoryPanel';
 import { ExternalKeyManager } from '@/components/settings/ExternalKeyManager';
+import { WebhookManager } from '@/components/settings/WebhookManager';
+import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager';
+import { cn } from '@/lib/utils';
 
 interface SettingsData {
   user: {
@@ -33,12 +36,15 @@ interface MemoryStats {
   pending: number;
 }
 
+type SettingsTab = 'general' | 'integrations';
+
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [memoryStats, setMemoryStats] = useState<MemoryStats | null>(null);
   const [showMemoryManager, setShowMemoryManager] = useState(false);
   const [clearingMemory, setClearingMemory] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   useEffect(() => {
     fetch('/api/settings')
@@ -78,7 +84,6 @@ export default function SettingsPage() {
         for (const item of lowConfidence) {
           await fetch(`/api/memory/${item.id}`, { method: 'DELETE' });
         }
-        // Refresh stats
         window.location.reload();
       }
     } finally {
@@ -121,162 +126,274 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Mode Toggle */}
-      <div className="panel">
-        <div className="panel-header">
-          <h2 className="font-semibold">Operating Mode</h2>
-        </div>
-        <div className="panel-body">
-          <ModeToggle
-            currentMode={(data?.user?.mode as 'cockpit' | 'chief_of_staff') || 'cockpit'}
-            onModeChange={async (mode) => {
-              await fetch('/api/settings', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode }),
-              });
-              setData((prev) =>
-                prev ? { ...prev, user: { ...prev.user, mode } } : prev
-              );
-            }}
-          />
-        </div>
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 bg-[var(--bg-tertiary)] rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'general'
+              ? 'bg-brand-600 text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          ⚙️ General
+        </button>
+        <button
+          onClick={() => setActiveTab('integrations')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'integrations'
+              ? 'bg-brand-600 text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          🔗 Integrations
+        </button>
       </div>
 
-      {/* Memory Management */}
-      <div className="panel">
-        <div className="panel-header flex items-center justify-between">
-          <h2 className="font-semibold">Memory Management</h2>
-          <button
-            onClick={() => setShowMemoryManager(!showMemoryManager)}
-            className="text-sm text-brand-400 hover:text-brand-300"
-          >
-            {showMemoryManager ? 'Hide Manager' : 'Open Manager'}
-          </button>
-        </div>
-        <div className="panel-body">
-          {/* Stats */}
-          {memoryStats && (
-            <div className="grid grid-cols-4 gap-3 mb-4">
-              <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
-                <div className="text-2xl font-bold text-brand-400">{memoryStats.total}</div>
-                <div className="text-xs text-[var(--text-muted)]">Total Items</div>
+      {/* General Tab */}
+      {activeTab === 'general' && (
+        <>
+          {/* Mode Toggle */}
+          <div className="panel">
+            <div className="panel-header">
+              <h2 className="font-semibold">Operating Mode</h2>
+            </div>
+            <div className="panel-body">
+              <ModeToggle
+                currentMode={(data?.user?.mode as 'cockpit' | 'chief_of_staff') || 'cockpit'}
+                onModeChange={async (mode) => {
+                  await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode }),
+                  });
+                  setData((prev) =>
+                    prev ? { ...prev, user: { ...prev.user, mode } } : prev
+                  );
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Memory Management */}
+          <div className="panel">
+            <div className="panel-header flex items-center justify-between">
+              <h2 className="font-semibold">Memory Management</h2>
+              <button
+                onClick={() => setShowMemoryManager(!showMemoryManager)}
+                className="text-sm text-brand-400 hover:text-brand-300"
+              >
+                {showMemoryManager ? 'Hide Manager' : 'Open Manager'}
+              </button>
+            </div>
+            <div className="panel-body">
+              {memoryStats && (
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                    <div className="text-2xl font-bold text-brand-400">{memoryStats.total}</div>
+                    <div className="text-xs text-[var(--text-muted)]">Total Items</div>
+                  </div>
+                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-400">{memoryStats.tier1}</div>
+                    <div className="text-xs text-[var(--text-muted)]">📌 Facts</div>
+                  </div>
+                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                    <div className="text-2xl font-bold text-purple-400">{memoryStats.tier2}</div>
+                    <div className="text-xs text-[var(--text-muted)]">📏 Rules</div>
+                  </div>
+                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-400">{memoryStats.tier3}</div>
+                    <div className="text-xs text-[var(--text-muted)]">🧠 Patterns</div>
+                  </div>
+                </div>
+              )}
+
+              {memoryStats && (memoryStats.pinned > 0 || memoryStats.pending > 0) && (
+                <div className="flex gap-4 mb-4 text-sm text-[var(--text-secondary)]">
+                  {memoryStats.pinned > 0 && <span>📌 {memoryStats.pinned} pinned</span>}
+                  {memoryStats.approved > 0 && <span>✓ {memoryStats.approved} approved</span>}
+                  {memoryStats.pending > 0 && (
+                    <span className="text-yellow-400">⏳ {memoryStats.pending} pending review</span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExportMemory}
+                  className="text-sm px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-brand-600/20 text-[var(--text-secondary)] hover:text-brand-400 transition-colors"
+                >
+                  📤 Export All
+                </button>
+                <button
+                  onClick={handleClearOldMemories}
+                  disabled={clearingMemory}
+                  className="text-sm px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-red-600/10 text-[var(--text-secondary)] hover:text-red-400 transition-colors disabled:opacity-50"
+                >
+                  {clearingMemory ? '🔄 Clearing...' : '🗑 Clear Low-Confidence'}
+                </button>
               </div>
-              <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
-                <div className="text-2xl font-bold text-blue-400">{memoryStats.tier1}</div>
-                <div className="text-xs text-[var(--text-muted)]">📌 Facts</div>
+
+              {showMemoryManager && (
+                <div className="mt-4 border-t border-[var(--border-primary)] pt-4 h-[500px]">
+                  <MemoryPanel />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Agent API Keys (v2) */}
+          <div className="panel">
+            <div className="panel-header flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold">Agent API Keys</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Bearer tokens for external AI agents to connect via the v2 API
+                </p>
               </div>
-              <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
-                <div className="text-2xl font-bold text-purple-400">{memoryStats.tier2}</div>
-                <div className="text-xs text-[var(--text-muted)]">📏 Rules</div>
+              <a
+                href="/api/v2/docs"
+                target="_blank"
+                className="text-xs text-brand-400 hover:text-brand-300"
+              >
+                📄 API Docs
+              </a>
+            </div>
+            <div className="panel-body">
+              <ExternalKeyManager />
+            </div>
+          </div>
+
+          {/* AI Provider API Keys */}
+          <div className="panel">
+            <div className="panel-header">
+              <h2 className="font-semibold">AI Provider API Keys</h2>
+            </div>
+            <div className="panel-body">
+              <ApiKeyManager
+                apiKeys={data?.apiKeys || []}
+                onKeyAdded={(key) => {
+                  setData((prev) =>
+                    prev ? { ...prev, apiKeys: [...prev.apiKeys, key] } : prev
+                  );
+                }}
+              />
+            </div>
+          </div>
+
+          {/* User Info */}
+          <div className="panel">
+            <div className="panel-header">
+              <h2 className="font-semibold">Account</h2>
+            </div>
+            <div className="panel-body space-y-3">
+              <div className="flex justify-between">
+                <span className="text-[var(--text-secondary)]">Name</span>
+                <span>{data?.user?.name}</span>
               </div>
-              <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-400">{memoryStats.tier3}</div>
-                <div className="text-xs text-[var(--text-muted)]">🧠 Patterns</div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-secondary)]">Email</span>
+                <span>{data?.user?.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-secondary)]">Role</span>
+                <span className="capitalize">{data?.user?.role}</span>
               </div>
             </div>
-          )}
+          </div>
+        </>
+      )}
 
-          {memoryStats && (memoryStats.pinned > 0 || memoryStats.pending > 0) && (
-            <div className="flex gap-4 mb-4 text-sm text-[var(--text-secondary)]">
-              {memoryStats.pinned > 0 && (
-                <span>📌 {memoryStats.pinned} pinned</span>
-              )}
-              {memoryStats.approved > 0 && (
-                <span>✓ {memoryStats.approved} approved</span>
-              )}
-              {memoryStats.pending > 0 && (
-                <span className="text-yellow-400">⏳ {memoryStats.pending} pending review</span>
-              )}
+      {/* Integrations Tab */}
+      {activeTab === 'integrations' && (
+        <>
+          {/* Webhooks Section */}
+          <div className="panel">
+            <div className="panel-header flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold">🔗 Webhooks</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Receive data from external services (Zapier, Make, n8n, custom integrations)
+                </p>
+              </div>
+              <a
+                href="/docs/integrations"
+                target="_blank"
+                className="text-xs text-brand-400 hover:text-brand-300"
+              >
+                📖 Integration Guide
+              </a>
             </div>
-          )}
-
-          {/* Bulk Actions */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleExportMemory}
-              className="text-sm px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-brand-600/20 text-[var(--text-secondary)] hover:text-brand-400 transition-colors"
-            >
-              📤 Export All
-            </button>
-            <button
-              onClick={handleClearOldMemories}
-              disabled={clearingMemory}
-              className="text-sm px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-red-600/10 text-[var(--text-secondary)] hover:text-red-400 transition-colors disabled:opacity-50"
-            >
-              {clearingMemory ? '🔄 Clearing...' : '🗑 Clear Low-Confidence'}
-            </button>
-          </div>
-
-          {/* Inline Memory Manager */}
-          {showMemoryManager && (
-            <div className="mt-4 border-t border-[var(--border-primary)] pt-4 h-[500px]">
-              <MemoryPanel />
+            <div className="panel-body">
+              <WebhookManager />
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Agent API Keys (v2) */}
-      <div className="panel">
-        <div className="panel-header flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold">Agent API Keys</h2>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Bearer tokens for external AI agents to connect via the v2 API
-            </p>
           </div>
-          <a
-            href="/api/v2/docs"
-            target="_blank"
-            className="text-xs text-brand-400 hover:text-brand-300"
-          >
-            📄 API Docs
-          </a>
-        </div>
-        <div className="panel-body">
-          <ExternalKeyManager />
-        </div>
-      </div>
 
+          {/* Service API Keys Section */}
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="font-semibold">🔑 Service API Keys</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Store credentials for external services (SendGrid, Twilio, Slack, etc.)
+                </p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <ServiceApiKeyManager />
+            </div>
+          </div>
 
-      {/* API Keys */}
-      <div className="panel">
-        <div className="panel-header">
-          <h2 className="font-semibold">AI Provider API Keys</h2>
-        </div>
-        <div className="panel-body">
-          <ApiKeyManager
-            apiKeys={data?.apiKeys || []}
-            onKeyAdded={(key) => {
-              setData((prev) =>
-                prev ? { ...prev, apiKeys: [...prev.apiKeys, key] } : prev
-              );
-            }}
-          />
-        </div>
-      </div>
-
-      {/* User Info */}
-      <div className="panel">
-        <div className="panel-header">
-          <h2 className="font-semibold">Account</h2>
-        </div>
-        <div className="panel-body space-y-3">
-          <div className="flex justify-between">
-            <span className="text-[var(--text-secondary)]">Name</span>
-            <span>{data?.user?.name}</span>
+          {/* Integration Help */}
+          <div className="panel">
+            <div className="panel-header">
+              <h2 className="font-semibold">📚 Quick Setup Guide</h2>
+            </div>
+            <div className="panel-body space-y-4 text-sm">
+              <div>
+                <h4 className="font-medium text-brand-400 mb-1">How Webhooks Work</h4>
+                <ol className="list-decimal list-inside space-y-1 text-[var(--text-secondary)]">
+                  <li>Create a webhook above and choose a type (Calendar, Email, Transcript, or Generic)</li>
+                  <li>Copy the webhook URL and secret</li>
+                  <li>Configure your external service (Zapier, Make, etc.) to send data to the URL</li>
+                  <li>DiviDen automatically creates tasks, contacts, and cards from incoming data</li>
+                </ol>
+              </div>
+              <div>
+                <h4 className="font-medium text-brand-400 mb-1">Authentication Methods</h4>
+                <ul className="list-disc list-inside space-y-1 text-[var(--text-secondary)]">
+                  <li><code className="text-xs bg-[var(--bg-tertiary)] px-1 rounded">?secret=YOUR_SECRET</code> — Query parameter (simplest)</li>
+                  <li><code className="text-xs bg-[var(--bg-tertiary)] px-1 rounded">X-Webhook-Secret: YOUR_SECRET</code> — Header-based</li>
+                  <li><code className="text-xs bg-[var(--bg-tertiary)] px-1 rounded">X-Webhook-Signature: sha256=...</code> — HMAC-SHA256 signature</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-medium text-brand-400 mb-1">Popular Integrations</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                    <span className="font-medium">📅 Google Calendar → DiviDen</span>
+                    <p className="text-[var(--text-muted)] mt-0.5">Auto-create tasks from calendar events via Zapier</p>
+                  </div>
+                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                    <span className="font-medium">📧 Gmail → DiviDen</span>
+                    <p className="text-[var(--text-muted)] mt-0.5">Create contacts and tasks from important emails</p>
+                  </div>
+                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                    <span className="font-medium">📝 Otter.ai → DiviDen</span>
+                    <p className="text-[var(--text-muted)] mt-0.5">Extract action items from meeting transcripts</p>
+                  </div>
+                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                    <span className="font-medium">🔗 Custom → DiviDen</span>
+                    <p className="text-[var(--text-muted)] mt-0.5">Any service that can send HTTP POST webhooks</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--text-secondary)]">Email</span>
-            <span>{data?.user?.email}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--text-secondary)]">Role</span>
-            <span className="capitalize">{data?.user?.role}</span>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
