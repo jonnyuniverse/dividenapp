@@ -4,25 +4,28 @@
 
 DiviDen uses a **webhook-first** integration approach. Instead of complex OAuth flows, you connect external services by creating webhook endpoints that receive data from automation platforms like Zapier, Make (Integromat), n8n, or direct API calls.
 
+**New in Phase 2:** Divi can now set up webhooks for you directly from chat. Just say "Help me connect Google Calendar" and Divi will create the webhook and walk you through the rest.
+
 ---
 
 ## Webhooks
 
 ### How It Works
 
-1. **Create a webhook** in Settings → Integrations
+1. **Create a webhook** in Settings → Integrations (or ask Divi to do it in chat)
 2. **Choose a type**: Calendar, Email, Transcript, or Generic
 3. **Copy the URL and secret** provided
 4. **Configure your automation tool** (Zapier, Make, etc.) to POST data to the webhook URL
-5. **DiviDen automatically processes** the data and creates tasks, contacts, cards, etc.
+5. **DiviDen auto-learns** the payload structure and maps fields automatically
+6. **Fine-tune** the field mapping in Settings → Webhooks → Field Mapping if needed
 
 ### Webhook Types
 
 | Type | Endpoint | Auto-Actions |
 |------|----------|-------------|
-| Calendar | `/api/webhooks/calendar` | Creates queue items from events, adds attendees as contacts |
-| Email | `/api/webhooks/email` | Creates contacts from senders, adds email as queue notification |
-| Transcript | `/api/webhooks/transcript` | Creates kanban cards with checklists from action items, adds participant contacts |
+| Calendar | `/api/webhooks/calendar` | Creates CalendarEvent + queue item, adds attendees as contacts |
+| Email | `/api/webhooks/email` | Creates EmailMessage + queue notification, adds sender as contact |
+| Transcript | `/api/webhooks/transcript` | Creates Recording + kanban card with checklist from action items, adds participant contacts |
 | Generic | `/api/webhooks/generic` | Creates a queue item with the payload data |
 
 ### Authentication
@@ -57,6 +60,44 @@ const signature = crypto
 
 ---
 
+## Auto-Learn Field Mapping
+
+DiviDen includes an **LLM-powered auto-learn system** that analyzes incoming webhook payloads and automatically maps fields to internal data models.
+
+### How It Works
+
+1. When a webhook receives its **first payload** and has no field mapping configured, DiviDen triggers a background LLM analysis
+2. The LLM examines the payload structure and produces a **field map** (dot-notation paths → standard field names)
+3. The mapping is saved to the webhook and used for all subsequent payloads
+4. You can **manually override** any mapping in Settings → Webhooks → 🧠 Field Mapping
+
+### Field Templates
+
+Each webhook type has expected fields:
+
+| Type | Fields |
+|------|--------|
+| Calendar | title, description, startTime, endTime, location, attendees |
+| Email | subject, fromName, fromEmail, toEmail, body, snippet |
+| Transcript | title, transcript, speakers, duration |
+| Generic | title, content, source |
+
+### Manual Override
+
+1. Go to Settings → Webhooks
+2. Click the **🧠 Field Mapping** button on any webhook
+3. View the current mapping status (auto-learned, manual, or mixed) with confidence score
+4. Edit any field's dot-notation path (e.g., change `event.summary` to `data.title`)
+5. Click **Save Mapping**
+6. Use **🧠 Ask Divi** to trigger a re-learn from the latest payload
+
+### API Endpoints
+
+- `GET /api/webhooks-management/[id]/learn` — Fetch current mapping config
+- `POST /api/webhooks-management/[id]/learn` — Trigger manual re-learn (accepts optional `payload` body)
+
+---
+
 ## Payload Formats
 
 ### Calendar Event Payload
@@ -74,18 +115,17 @@ const signature = crypto
     {
       "email": "alice@example.com",
       "displayName": "Alice Johnson"
-    },
-    {
-      "email": "bob@example.com",
-      "displayName": "Bob Smith"
     }
   ]
 }
 ```
 
 **Auto-actions:**
+- Creates a CalendarEvent (visible in Calendar tab)
 - Creates a queue item titled "📅 Team Standup"
 - Creates contacts for new attendees
+- Event appears in NowPanel "Coming Up" section
+- Feeds into Divi's context via Layer 12
 
 ### Email Notification Payload
 ```json
@@ -100,8 +140,10 @@ const signature = crypto
 ```
 
 **Auto-actions:**
+- Creates an EmailMessage (visible in Inbox tab)
 - Creates or finds contact for the sender
 - Creates a queue notification titled "📧 Project Update"
+- Unread count feeds into Divi's context via Layer 13
 
 ### Meeting Transcript Payload
 ```json
@@ -110,17 +152,16 @@ const signature = crypto
   "transcript": "Discussion about Q1 goals...",
   "actionItems": [
     "Review budget proposal by Friday",
-    "Schedule follow-up with engineering",
-    "Prepare presentation for stakeholders"
+    "Schedule follow-up with engineering"
   ],
   "participants": [
-    { "name": "John Doe", "email": "john@example.com" },
-    { "name": "Jane Smith", "email": "jane@example.com" }
+    { "name": "John Doe", "email": "john@example.com" }
   ]
 }
 ```
 
 **Auto-actions:**
+- Creates a Recording (visible in Recordings tab)
 - Creates a kanban card titled "📝 Q1 Planning Meeting"
 - Adds action items as checklist items on the card
 - Creates contacts for new participants
@@ -139,6 +180,40 @@ const signature = crypto
 
 **Auto-actions:**
 - Creates a queue item titled "🔗 New Form Submission"
+
+---
+
+## Setting Up via Divi (Chat)
+
+Instead of manual configuration, you can ask Divi to set things up:
+
+```
+You: "Set up a webhook for my Google Calendar"
+Divi: Creates the webhook → gives you the URL + secret → walks you through Zapier setup
+
+You: "Here's my OpenAI key: sk-abc123..."
+Divi: Saves the key → confirms it's active → you're ready to go
+
+You: "Add a meeting with John tomorrow at 2pm"
+Divi: Creates a CalendarEvent directly → visible in Calendar tab
+
+You: "Create a note about today's client call"
+Divi: Creates a Document in Drive with your notes
+```
+
+### What Divi Can Do Directly
+- Create webhook endpoints (`setup_webhook`)
+- Save API keys (`save_api_key`)
+- Create calendar events (`create_calendar_event`)
+- Create documents (`create_document`)
+- Send comms messages (`send_comms`)
+- Create kanban cards, contacts, queue items
+
+### What Divi Guides You Through
+- Connecting Google Calendar (via Zapier/Apps Script)
+- Connecting Gmail/Outlook (via Zapier/Make/n8n)
+- Connecting meeting transcripts (Plaud, Otter, Fireflies)
+- Connecting Slack, Notion, or other services
 
 ---
 
@@ -174,13 +249,14 @@ const signature = crypto
      body: {{Body Plain}}
      ```
 
-### Otter.ai / Fireflies → DiviDen
+### Otter.ai / Fireflies / Plaud → DiviDen
 
-1. **Trigger**: Otter.ai webhook or Fireflies webhook
+1. **Trigger**: Service's webhook or Zapier integration
 2. **Action**: Webhooks by Zapier → POST
 3. **Configuration**:
    - URL: Your DiviDen transcript webhook URL
    - Map the transcript data to the expected format
+   - DiviDen auto-learns the field mapping on first payload
 
 ---
 
@@ -193,7 +269,7 @@ const signature = crypto
 3. Configure:
    - **URL**: Your DiviDen webhook URL (from Settings → Integrations)
    - **Method**: POST
-   - **Headers**: `Content-Type: application/json`
+   - **Headers**: `Content-Type: application/json`, `X-Webhook-Secret: YOUR_SECRET`
    - **Body**: Map your data to the appropriate payload format
 4. Connect your trigger (Google Calendar, Gmail, etc.)
 
@@ -217,63 +293,58 @@ const signature = crypto
 
 ---
 
-## Custom Mapping Rules
+## Agent API v2
 
-For advanced use cases, you can define custom mapping rules when creating a webhook. Mapping rules let you control exactly how payload data maps to DiviDen actions.
+DiviDen exposes a REST API for external agents and services. All v2 endpoints require a Bearer token (created in Settings → Agent API Keys).
 
-### Mapping Rule Format
-```json
-[
-  {
-    "field": "data",
-    "action": "create_card",
-    "mapping": {
-      "title": "data.name",
-      "description": "data.message",
-      "priority": "\"high\""
-    },
-    "conditions": {
-      "type": "new_lead"
-    }
-  }
-]
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/v2/kanban` | List/create kanban cards |
+| PATCH/DELETE | `/api/v2/kanban/[id]` | Update/delete a card |
+| GET/POST | `/api/v2/contacts` | List/create contacts |
+| PATCH/DELETE | `/api/v2/contacts/[id]` | Update/delete a contact |
+| GET/POST | `/api/v2/queue` | List/create queue items |
+| PATCH/DELETE | `/api/v2/queue/[id]` | Update/delete a queue item |
+| GET | `/api/v2/queue/[id]/status` | Check item status |
+| POST | `/api/v2/queue/[id]/result` | Submit result for item |
+| GET | `/api/v2/docs` | OpenAPI specification |
+| GET/POST | `/api/v2/keys` | Manage API keys |
+| GET/POST | `/api/v2/shared-chat/*` | Shared chat endpoints |
+
+### Authentication
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://your-dividen-url/api/v2/kanban
 ```
-
-### Available Actions
-- `create_card` — Creates a Kanban card
-- `create_contact` — Creates a CRM contact
-- `create_queue_item` — Creates a queue item
-
-### Mapping Syntax
-- `field.path` — Extract value from payload using dot notation
-- `"literal value"` — Use a literal string value (wrap in escaped quotes)
 
 ---
 
-## Service API Keys
+## Comms Channel
 
-Store API keys for external services that DiviDen can use for outbound actions.
+The Comms Channel (`/dashboard/comms`) provides structured bidirectional messaging between the user and Divi.
 
-### Supported Services
+### Message States
+| State | Description |
+|-------|------------|
+| `new` | Freshly created, unread |
+| `read` | Viewed by recipient |
+| `acknowledged` | Actively noted |
+| `resolved` | Action completed |
+| `dismissed` | Intentionally ignored |
 
-| Service | Use Case |
-|---------|----------|
-| SendGrid | Sending automated emails |
-| Twilio | SMS notifications |
-| Slack | Posting messages to channels |
-| Stripe | Payment-related actions |
-| Notion | Syncing data with Notion |
-| Airtable | Syncing data with Airtable |
-| GitHub | Repository automation |
-| Custom | Any service with an API key |
+### API Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/comms` | List messages (supports `?state=` filter) |
+| POST | `/api/comms` | Create a message |
+| PATCH | `/api/comms/[id]` | Update state/priority |
+| DELETE | `/api/comms/[id]` | Delete a message |
+| GET | `/api/comms/unread` | Get unread count |
 
-### Adding Keys
-
-1. Go to Settings → Integrations → Service API Keys
-2. Click "+ Add Key"
-3. Select the service
-4. Enter a label and the API key
-5. Keys are stored securely (only last 4 characters visible in UI)
+Divi can also send comms messages via the `[[send_comms:...]]` action tag.
 
 ---
 
@@ -283,7 +354,8 @@ Each webhook has a **Test** button that sends a sample payload matching the webh
 
 1. The webhook is configured correctly
 2. Actions are being created as expected
-3. Check the webhook logs for details
+3. Auto-learn mapping is generated on first test
+4. Check the webhook logs for details
 
 ### Using cURL
 
@@ -291,24 +363,13 @@ Each webhook has a **Test** button that sends a sample payload matching the webh
 # Test a calendar webhook
 curl -X POST "YOUR_WEBHOOK_URL" \
   -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: YOUR_SECRET" \
   -d '{
     "summary": "Test Meeting",
     "start": {"dateTime": "2025-01-15T10:00:00Z"},
     "attendees": [{"email": "test@example.com", "displayName": "Test User"}]
   }'
 ```
-
----
-
-## Webhook Logs
-
-All webhook requests are logged with:
-- **Status**: success, error, or ignored
-- **Payload**: The incoming request body
-- **Actions Run**: Which actions were executed
-- **Errors**: Any error messages
-
-View logs in Settings → Integrations → Click "View Logs" on any webhook.
 
 ---
 
