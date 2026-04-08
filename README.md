@@ -230,4 +230,4 @@ MIT © [DiviDen Contributors](https://github.com/jonnyuniverse/dividenapp)
 
 ---
 
-**[dividen.ai](https://dividen.ai)** — Coordinate humans and AI agents, together.
+**[DiviDen.ai](https://DiviDen.ai)** — Coordinate humans and AI agents, together.
